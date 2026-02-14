@@ -13,6 +13,9 @@ COPY services/flight-service/tsconfig.json ./services/flight-service/
 COPY services/flight-service/src/ ./services/flight-service/src/
 COPY shared/ ./shared/
 
+# Symlink node_modules at root so shared/ can resolve deps
+RUN ln -s /app/services/flight-service/node_modules /app/node_modules
+
 # Build
 WORKDIR /app/services/flight-service
 RUN npm run build

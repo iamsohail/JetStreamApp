@@ -13,6 +13,9 @@ COPY services/user-service/tsconfig.json ./services/user-service/
 COPY services/user-service/src/ ./services/user-service/src/
 COPY shared/ ./shared/
 
+# Symlink node_modules at root so shared/ can resolve deps
+RUN ln -s /app/services/user-service/node_modules /app/node_modules
+
 # Build
 WORKDIR /app/services/user-service
 RUN npm run build

@@ -8,7 +8,7 @@ final class AppConfig {
     // MARK: - API Configuration
     var apiBaseURL: URL {
         #if DEBUG
-        return URL(string: "http://localhost:3000/api/v1")!
+        return URL(string: "http://192.168.1.9:3000/api/v1")!
         #else
         return URL(string: "https://api.jetstream.app/api/v1")!
         #endif

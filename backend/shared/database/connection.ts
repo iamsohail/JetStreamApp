@@ -15,9 +15,9 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
 });
 
-export async function query<T = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+export async function query(text: string, params?: any[]): Promise<QueryResult> {
   const start = Date.now();
-  const result = await pool.query<T>(text, params);
+  const result = await pool.query(text, params);
   const duration = Date.now() - start;
 
   if (process.env.LOG_QUERIES === 'true') {

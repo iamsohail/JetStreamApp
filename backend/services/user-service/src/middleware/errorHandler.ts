@@ -44,9 +44,10 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     });
   }
 
-  logger.error('Unexpected error:', err);
+  logger.error(`Unexpected error: ${err.message}`);
+  logger.error(err.stack || 'No stack trace');
   res.status(500).json({
     success: false,
-    error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
+    error: { code: 'INTERNAL_ERROR', message: err.message || 'An unexpected error occurred' },
   });
 }

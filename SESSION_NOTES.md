@@ -60,8 +60,46 @@
 - `ios/JetStream/Views/Flights/PNRLookupView.swift`
 
 ### User actions required
-1. Create Firebase project → enable Email/Password + Google + Apple sign-in → download `GoogleService-Info.plist` → place in `ios/JetStream/`
-2. Get AviationStack API key (free at aviationstack.com)
-3. Copy `backend/.env.example` → `backend/.env`, fill in `FIREBASE_PROJECT_ID` and `AVIATIONSTACK_API_KEY`
-4. `cd backend && docker-compose up --build`
-5. Build and run from Xcode
+1. ~~Create Firebase project~~ ✅ Done — `jetstream-62274`, all 3 auth providers enabled
+2. Get AviationStack API key (free at aviationstack.com) — **still needed for flight search**
+3. ~~Copy `.env.example` → `.env`~~ ✅ Done — `FIREBASE_PROJECT_ID` set
+4. ~~Docker backend~~ ✅ Working — all 5 containers healthy
+5. ~~Build and run from Xcode~~ ✅ Working on iPhone 15 Pro
+
+## Session 3: Firebase Setup & Backend Deployment (2026-02-15)
+
+### What was done
+
+**Firebase setup:**
+- Created Firebase project `jetstream-62274`
+- Enabled 3 auth providers: Email/Password, Google, Apple
+- Downloaded `GoogleService-Info.plist` with `CLIENT_ID` and `REVERSED_CLIENT_ID`
+- Added Google Sign-In URL scheme (`REVERSED_CLIENT_ID`) to `project.yml`
+- Added "Sign in with Apple" capability to entitlements via `project.yml`
+- Added `NSAppTransportSecurity` (allow HTTP) for local dev
+- Set `FIREBASE_PROJECT_ID=jetstream-62274` in `backend/.env`
+
+**Backend Docker fixes:**
+- Generated `package-lock.json` for both services (required by `npm ci`)
+- Symlinked `node_modules` at `/app` root in Dockerfiles so shared module can resolve `pg` types
+- Fixed TypeScript generics in `shared/database/connection.ts` (`QueryResultRow` constraint)
+- Reset postgres volume to trigger fresh DB init (tables weren't created on existing volume)
+- Resolved port conflicts with MealMate (both used 3001-3002)
+- Added detailed error logging in `errorHandler.ts`
+
+**iOS config:**
+- Changed API base URL from `localhost:3000` to `192.168.1.9:3000` (Mac local IP) for physical device testing
+
+### Verified working
+- All 5 Docker containers healthy (gateway, user-service, flight-service, postgres, redis)
+- Google Sign-In → Firebase token → backend JWT exchange → user created in DB
+- Dashboard loads (shows empty state — no flights yet)
+- Manual flight entry form accessible
+
+### Known issues / Next steps
+- **AviationStack API key not set** — flight number search returns no results (need to sign up at aviationstack.com)
+- **MealMate port conflict** — stop MealMate Docker before starting JetStream (`docker-compose -f ~/MealPlannerApp/backend/docker-compose.yml stop`)
+- **API base URL hardcoded** — `192.168.1.9` will change if Mac IP changes on different networks
+- **Format string warning** — `String(format: "%.0f km")` used with Int in DashboardView (cosmetic)
+- Add flights via manual entry or flight search (once API key is set)
+- Test analytics with real flight data

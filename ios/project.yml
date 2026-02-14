@@ -54,6 +54,7 @@ targets:
       Background Modes:
         modes:
           - remote-notification
+      Sign in with Apple: {}
     dependencies:
       - package: Firebase
         product: FirebaseAuth
@@ -81,9 +82,14 @@ targets:
       path: JetStream/Info.plist
       properties:
         UILaunchStoryboardName: LaunchScreen
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
         UIBackgroundModes:
           - remote-notification
         CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.732472215581-c07mel2qg2g71qcarus9da8buki8toeq
+            CFBundleURLName: Google Sign-In
           - CFBundleURLSchemes:
               - jetstream
             CFBundleURLName: JetStream Deep Links
@@ -91,6 +97,8 @@ targets:
       path: JetStream/JetStream.entitlements
       properties:
         aps-environment: production
+        com.apple.developer.applesignin:
+          - Default
 
   JetStreamTests:
     type: bundle.unit-test
