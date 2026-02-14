@@ -27,6 +27,11 @@ app.get('/health', (_, res) => {
 app.use('/api/v1/flights', flightRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 
+// Top-level reference routes (proxied by nginx at /api/v1/airports and /api/v1/airlines)
+import { flightController } from './controllers/flightController';
+app.get('/api/v1/airports/search', flightController.searchAirports.bind(flightController));
+app.get('/api/v1/airlines/search', flightController.searchAirlines.bind(flightController));
+
 app.use(errorHandler);
 
 app.listen(PORT, () => {

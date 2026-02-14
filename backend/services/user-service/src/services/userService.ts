@@ -49,6 +49,13 @@ export class UserService {
     return result.rows[0] || null;
   }
 
+  async updateFirebaseUid(id: string, firebaseUid: string) {
+    await query(
+      'UPDATE users SET firebase_uid = $1, updated_at = NOW() WHERE id = $2',
+      [firebaseUid, id]
+    );
+  }
+
   async updateProfile(id: string, params: UpdateProfileParams) {
     const fields: string[] = [];
     const values: any[] = [];

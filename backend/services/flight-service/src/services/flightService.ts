@@ -6,13 +6,8 @@ const amadeusService = new AmadeusService();
 const aviationStackService = new AviationStackService();
 
 export class FlightService {
-  async lookupPNR(pnr: string) {
-    // Try Amadeus first for PNR details
-    try {
-      return await amadeusService.lookupPNR(pnr);
-    } catch {
-      throw new Error(`Could not find flight for PNR: ${pnr}`);
-    }
+  async searchByFlightNumber(flightNumber: string, date?: string) {
+    return await aviationStackService.searchByFlightNumber(flightNumber, date);
   }
 
   async getUserFlights(userId: string, page: number, limit: number) {

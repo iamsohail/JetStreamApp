@@ -1,16 +1,19 @@
 import SwiftUI
-import SwiftData
 
 struct FlightListView: View {
-    @Query(sort: \Flight.scheduledDeparture, order: .reverse) var flights: [Flight]
+    @State private var flights: [FlightResponse] = []
     @State private var selectedTab = 0
     @State private var showAddFlight = false
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
-    private var upcomingFlights: [Flight] {
+    private let flightService = FlightService()
+
+    private var upcomingFlights: [FlightResponse] {
         flights.filter { $0.isUpcoming }
     }
 
-    private var pastFlights: [Flight] {
+    private var pastFlights: [FlightResponse] {
         flights.filter { $0.isPast }
     }
 
@@ -20,7 +23,6 @@ struct FlightListView: View {
                 Color.darkBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Segmented control
                     Picker("", selection: $selectedTab) {
                         Text("Upcoming").tag(0)
                         Text("Past").tag(1)
@@ -30,7 +32,29 @@ struct FlightListView: View {
 
                     let displayFlights = selectedTab == 0 ? upcomingFlights : pastFlights
 
-                    if displayFlights.isEmpty {
+                    if isLoading && flights.isEmpty {
+                        Spacer()
+                        ProgressView()
+                            .tint(Color.skyBlue)
+                            .scaleEffect(1.5)
+                        Spacer()
+                    } else if let error = errorMessage, flights.isEmpty {
+                        Spacer()
+                        VStack(spacing: Theme.Spacing.md) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 50))
+                                .foregroundStyle(Color.amber)
+                            Text(error)
+                                .font(Theme.Typography.subheadline)
+                                .foregroundStyle(Color.textSecondary)
+                                .multilineTextAlignment(.center)
+                            Button("Retry") {
+                                Task { await loadFlights() }
+                            }
+                            .foregroundStyle(Color.skyBlue)
+                        }
+                        Spacer()
+                    } else if displayFlights.isEmpty {
                         Spacer()
                         VStack(spacing: Theme.Spacing.md) {
                             Image(systemName: selectedTab == 0 ? "airplane.departure" : "airplane.arrival")
@@ -44,14 +68,17 @@ struct FlightListView: View {
                     } else {
                         ScrollView {
                             LazyVStack(spacing: Theme.Spacing.sm) {
-                                ForEach(displayFlights) { flight in
+                                ForEach(displayFlights, id: \.displayId) { flight in
                                     NavigationLink(destination: FlightDetailView(flight: flight)) {
-                                        FlightCard(flight: flight)
+                                        FlightCardView(flight: flight)
                                     }
                                     .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal)
+                        }
+                        .refreshable {
+                            await loadFlights()
                         }
                     }
                 }
@@ -72,6 +99,27 @@ struct FlightListView: View {
             .sheet(isPresented: $showAddFlight) {
                 AddFlightView()
             }
+            .onChange(of: showAddFlight) { _, isShowing in
+                if !isShowing {
+                    Task { await loadFlights() }
+                }
+            }
+            .task {
+                await loadFlights()
+            }
         }
+    }
+
+    private func loadFlights() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            flights = try await flightService.getFlights()
+        } catch {
+            if flights.isEmpty {
+                errorMessage = error.localizedDescription
+            }
+        }
+        isLoading = false
     }
 }

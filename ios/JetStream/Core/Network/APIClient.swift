@@ -12,6 +12,7 @@ final class APIClient: APIClientProtocol {
     private let encoder: JSONEncoder
     private let config: AppConfig
     private let keychainManager: KeychainManager
+    private var isRefreshing = false
 
     init(
         session: URLSession = .shared,
@@ -31,6 +32,31 @@ final class APIClient: APIClientProtocol {
     }
 
     func request<T: Decodable>(_ endpoint: APIEndpoint) async throws -> T {
+        do {
+            return try await performRequest(endpoint)
+        } catch NetworkError.unauthorized {
+            if endpoint.requiresAuth && !isRefreshing {
+                try await refreshAccessToken()
+                return try await performRequest(endpoint)
+            }
+            throw NetworkError.unauthorized
+        }
+    }
+
+    func request(_ endpoint: APIEndpoint) async throws {
+        do {
+            try await performVoidRequest(endpoint)
+        } catch NetworkError.unauthorized {
+            if endpoint.requiresAuth && !isRefreshing {
+                try await refreshAccessToken()
+                try await performVoidRequest(endpoint)
+                return
+            }
+            throw NetworkError.unauthorized
+        }
+    }
+
+    private func performRequest<T: Decodable>(_ endpoint: APIEndpoint) async throws -> T {
         let request = try buildRequest(for: endpoint)
         logRequest(request)
         let (data, response) = try await session.data(for: request)
@@ -39,12 +65,34 @@ final class APIClient: APIClientProtocol {
         return try decodeResponse(data)
     }
 
-    func request(_ endpoint: APIEndpoint) async throws {
+    private func performVoidRequest(_ endpoint: APIEndpoint) async throws {
         let request = try buildRequest(for: endpoint)
         logRequest(request)
         let (data, response) = try await session.data(for: request)
         try validateResponse(response, data: data)
         logResponse(response, data: data)
+    }
+
+    private func refreshAccessToken() async throws {
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        guard let refreshToken = keychainManager.getRefreshToken() else {
+            throw NetworkError.unauthorized
+        }
+
+        let endpoint = AuthEndpoint.refreshToken(refreshToken: refreshToken)
+        let request = try buildRequest(for: endpoint)
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response, data: data)
+
+        struct TokenResponse: Decodable {
+            let accessToken: String
+            let refreshToken: String
+        }
+
+        let tokens: TokenResponse = try decodeResponse(data)
+        keychainManager.saveTokens(access: tokens.accessToken, refresh: tokens.refreshToken)
     }
 
     private func buildRequest(for endpoint: APIEndpoint) throws -> URLRequest {

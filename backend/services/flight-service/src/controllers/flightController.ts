@@ -5,10 +5,10 @@ import { validationResult } from 'express-validator';
 const flightService = new FlightService();
 
 export class FlightController {
-  async pnrLookup(req: Request, res: Response, next: NextFunction) {
+  async searchByFlightNumber(req: Request, res: Response, next: NextFunction) {
     try {
-      const { pnr } = req.body;
-      const result = await flightService.lookupPNR(pnr);
+      const { flight_number, date } = req.body;
+      const result = await flightService.searchByFlightNumber(flight_number, date);
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);

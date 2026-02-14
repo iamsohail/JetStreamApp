@@ -1,9 +1,7 @@
 import SwiftUI
-import SwiftData
 
 struct AddFlightView: View {
     @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) var modelContext
     @State private var selectedTab = 0
 
     var body: some View {
@@ -13,14 +11,14 @@ struct AddFlightView: View {
 
                 VStack(spacing: 0) {
                     Picker("", selection: $selectedTab) {
-                        Text("PNR Lookup").tag(0)
+                        Text("Flight Search").tag(0)
                         Text("Manual Entry").tag(1)
                     }
                     .pickerStyle(.segmented)
                     .padding()
 
                     if selectedTab == 0 {
-                        PNRLookupView()
+                        FlightSearchView()
                     } else {
                         ManualFlightEntryView()
                     }
@@ -41,7 +39,6 @@ struct AddFlightView: View {
 
 struct ManualFlightEntryView: View {
     @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) var modelContext
     @State private var flightNumber = ""
     @State private var airlineCode = ""
     @State private var airlineName = ""
@@ -56,6 +53,10 @@ struct ManualFlightEntryView: View {
     @State private var cabinClass: CabinClass = .economy
     @State private var seatNumber = ""
     @State private var notes = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    private let flightService = FlightService()
 
     var body: some View {
         ScrollView {
@@ -104,44 +105,63 @@ struct ManualFlightEntryView: View {
                 TextField("", text: $notes, prompt: Text("Notes").foregroundStyle(Color.textSecondary))
                     .textFieldStyle(JetStreamTextFieldStyle())
 
-                Button {
-                    saveFlight()
-                } label: {
-                    Text("Add Flight")
-                        .font(Theme.Typography.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.skyBlue)
-                        .foregroundStyle(.white)
-                        .cornerRadius(Theme.CornerRadius.medium)
+                if let error = errorMessage {
+                    Text(error)
+                        .font(Theme.Typography.footnote)
+                        .foregroundStyle(Color.jetRed)
                 }
-                .disabled(flightNumber.isEmpty || departureCode.isEmpty || arrivalCode.isEmpty)
+
+                Button {
+                    Task { await saveFlight() }
+                } label: {
+                    HStack {
+                        if isSaving {
+                            ProgressView().tint(.white)
+                        }
+                        Text("Add Flight")
+                            .font(Theme.Typography.headline)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.skyBlue)
+                    .foregroundStyle(.white)
+                    .cornerRadius(Theme.CornerRadius.medium)
+                }
+                .disabled(flightNumber.isEmpty || departureCode.isEmpty || arrivalCode.isEmpty || isSaving)
             }
             .padding()
         }
     }
 
-    private func saveFlight() {
+    private func saveFlight() async {
+        isSaving = true
+        errorMessage = nil
         let duration = Int(arrivalDate.timeIntervalSince(departureDate) / 60)
-        let flight = Flight(
+
+        let request = FlightCreateRequest(
+            pnr: nil,
             flightNumber: flightNumber.uppercased(),
             airlineCode: airlineCode.uppercased(),
             airlineName: airlineName,
-            departureAirportCode: departureCode.uppercased(),
-            departureAirportName: departureName,
-            departureCity: departureCity,
-            arrivalAirportCode: arrivalCode.uppercased(),
-            arrivalAirportName: arrivalName,
-            arrivalCity: arrivalCity,
+            departureAirport: departureCode.uppercased(),
+            departureCity: departureCity.isEmpty ? nil : departureCity,
+            arrivalAirport: arrivalCode.uppercased(),
+            arrivalCity: arrivalCity.isEmpty ? nil : arrivalCity,
             scheduledDeparture: departureDate,
             scheduledArrival: arrivalDate,
+            cabinClass: cabinClass.rawValue,
             seatNumber: seatNumber.isEmpty ? nil : seatNumber,
-            cabinClass: cabinClass,
-            durationMinutes: max(duration, 0),
             notes: notes.isEmpty ? nil : notes,
-            isManualEntry: true
+            isManualEntry: true,
+            durationMinutes: max(duration, 0)
         )
-        modelContext.insert(flight)
-        dismiss()
+
+        do {
+            _ = try await flightService.createFlight(request)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isSaving = false
     }
 }

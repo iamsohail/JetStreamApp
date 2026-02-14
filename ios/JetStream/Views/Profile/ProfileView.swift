@@ -2,6 +2,10 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthenticationService
+    @State private var profile: ProfileResponse?
+    @State private var isLoading = false
+
+    private let flightService = FlightService()
 
     var body: some View {
         NavigationStack {
@@ -16,13 +20,19 @@ struct ProfileView: View {
                                 .font(.system(size: 80))
                                 .foregroundStyle(Color.skyBlue)
 
-                            Text(authService.userProfile?.name ?? "Traveler")
+                            Text(profile?.name ?? authService.userProfile?.name ?? "Traveler")
                                 .font(Theme.Typography.title2)
                                 .foregroundStyle(.white)
 
-                            Text(authService.userProfile?.email ?? "")
+                            Text(profile?.email ?? authService.userProfile?.email ?? "")
                                 .font(Theme.Typography.subheadline)
                                 .foregroundStyle(Color.textSecondary)
+
+                            if let provider = profile?.authProvider {
+                                Text("Signed in with \(provider)")
+                                    .font(Theme.Typography.caption)
+                                    .foregroundStyle(Color.textSecondary)
+                            }
                         }
                         .padding(.top, Theme.Spacing.lg)
 
@@ -60,7 +70,20 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .task {
+                await loadProfile()
+            }
         }
+    }
+
+    private func loadProfile() async {
+        isLoading = true
+        do {
+            profile = try await flightService.getProfile()
+        } catch {
+            // Silently fail — use Firebase profile as fallback
+        }
+        isLoading = false
     }
 }
 

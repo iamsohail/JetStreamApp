@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { UserService } from './userService';
 import { generateTokenPair, verifyToken } from '../utils/jwt';
+import { verifyFirebaseToken } from '../utils/firebase';
 import { AppError, UnauthorizedError, ConflictError } from '../middleware/errorHandler';
 
 const userService = new UserService();
@@ -35,9 +36,34 @@ export class AuthService {
   }
 
   async socialAuth(provider: string, token: string) {
-    // TODO: Verify token with Firebase Admin SDK
-    // For now, placeholder that trusts the client token
-    throw new AppError(501, 'SOCIAL_AUTH_PENDING', 'Social auth integration pending');
+    const firebaseUser = await verifyFirebaseToken(token);
+
+    // Check if user exists by firebase_uid
+    let user = await userService.findByFirebaseUid(firebaseUser.uid);
+    if (user) {
+      const tokens = generateTokenPair(user.id, user.email);
+      return { user: { id: user.id, email: user.email, name: user.name }, ...tokens };
+    }
+
+    // Check by email for account linking
+    user = await userService.findByEmail(firebaseUser.email);
+    if (user) {
+      await userService.updateFirebaseUid(user.id, firebaseUser.uid);
+      const tokens = generateTokenPair(user.id, user.email);
+      return { user: { id: user.id, email: user.email, name: user.name }, ...tokens };
+    }
+
+    // Create new user
+    user = await userService.create({
+      email: firebaseUser.email,
+      passwordHash: '',
+      name: firebaseUser.name,
+      authProvider: provider,
+      firebaseUid: firebaseUser.uid,
+      avatarUrl: firebaseUser.picture,
+    });
+    const tokens = generateTokenPair(user.id, user.email);
+    return { user: { id: user.id, email: user.email, name: user.name }, ...tokens };
   }
 
   async refreshToken(refreshToken: string) {

@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct FlightCard: View {
-    let flight: Flight
+struct FlightCardView: View {
+    let flight: FlightResponse
 
     var body: some View {
         VStack(spacing: Theme.Spacing.sm) {
@@ -11,16 +11,16 @@ struct FlightCard: View {
                     .font(Theme.Typography.captionMedium)
                     .foregroundStyle(Color.textSecondary)
                 Spacer()
-                StatusBadge(status: flight.status)
+                StatusBadge(status: flight.flightStatus)
             }
 
             // Route
             HStack {
                 VStack(alignment: .leading) {
-                    Text(flight.departureAirportCode)
+                    Text(flight.departureAirport)
                         .font(Theme.Typography.title2)
                         .foregroundStyle(.white)
-                    Text(flight.departureCity)
+                    Text(flight.departureCity ?? "")
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Color.textSecondary)
                 }
@@ -42,10 +42,10 @@ struct FlightCard: View {
                 Spacer()
 
                 VStack(alignment: .trailing) {
-                    Text(flight.arrivalAirportCode)
+                    Text(flight.arrivalAirport)
                         .font(Theme.Typography.title2)
                         .foregroundStyle(.white)
-                    Text(flight.arrivalCity)
+                    Text(flight.arrivalCity ?? "")
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Color.textSecondary)
                 }
@@ -57,7 +57,7 @@ struct FlightCard: View {
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Color.textSecondary)
                 Spacer()
-                Text(flight.cabinClass.displayName)
+                Text(flight.cabin.displayName)
                     .font(Theme.Typography.caption)
                     .foregroundStyle(Color.textSecondary)
             }

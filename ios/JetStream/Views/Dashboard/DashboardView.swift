@@ -1,25 +1,13 @@
 import SwiftUI
-import SwiftData
 
 struct DashboardView: View {
     @EnvironmentObject var authService: AuthenticationService
-    @Query(sort: \Flight.scheduledDeparture, order: .forward) var flights: [Flight]
+    @State private var summary: AnalyticsSummary?
+    @State private var recentFlights: [FlightResponse] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
-    private var upcomingFlights: [Flight] {
-        flights.filter { $0.isUpcoming }.prefix(5).map { $0 }
-    }
-
-    private var totalDistance: Double {
-        flights.reduce(0) { $0 + $1.distanceKm }
-    }
-
-    private var totalHours: Int {
-        flights.reduce(0) { $0 + $1.durationMinutes } / 60
-    }
-
-    private var uniqueCountries: Int {
-        Set(flights.flatMap { [$0.departureCity, $0.arrivalCity] }).count
-    }
+    private let flightService = FlightService()
 
     var body: some View {
         NavigationStack {
@@ -45,52 +33,99 @@ struct DashboardView: View {
                         }
                         .padding(.horizontal)
 
-                        // Stats grid
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.md) {
-                            StatCard(title: "Total Flights", value: "\(flights.count)", icon: "airplane", color: .skyBlue)
-                            StatCard(title: "Distance", value: String(format: "%.0f km", totalDistance), icon: "globe", color: .emerald)
-                            StatCard(title: "Flight Hours", value: "\(totalHours)h", icon: "clock.fill", color: .amber)
-                            StatCard(title: "Cities", value: "\(uniqueCountries)", icon: "mappin.circle.fill", color: .skyBlue)
-                        }
-                        .padding(.horizontal)
-
-                        // Upcoming flights
-                        if !upcomingFlights.isEmpty {
-                            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                                Text("Upcoming Flights")
-                                    .font(Theme.Typography.headline)
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal)
-
-                                ForEach(upcomingFlights) { flight in
-                                    NavigationLink(destination: FlightDetailView(flight: flight)) {
-                                        FlightCard(flight: flight)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
+                        if isLoading && summary == nil {
+                            VStack {
+                                Spacer()
+                                ProgressView()
+                                    .tint(Color.skyBlue)
+                                    .scaleEffect(1.5)
+                                Spacer()
                             }
-                        } else {
-                            // Empty state
+                            .frame(height: 200)
+                        } else if let error = errorMessage, summary == nil {
                             VStack(spacing: Theme.Spacing.md) {
-                                Image(systemName: "airplane.departure")
-                                    .font(.system(size: 50))
-                                    .foregroundStyle(Color.textSecondary)
-                                Text("No upcoming flights")
-                                    .font(Theme.Typography.headline)
-                                    .foregroundStyle(.white)
-                                Text("Add a flight to get started")
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(Color.amber)
+                                Text(error)
                                     .font(Theme.Typography.subheadline)
                                     .foregroundStyle(Color.textSecondary)
+                                Button("Retry") {
+                                    Task { await loadData() }
+                                }
+                                .foregroundStyle(Color.skyBlue)
                             }
-                            .frame(maxWidth: .infinity)
                             .padding(.vertical, Theme.Spacing.xxl)
+                        } else {
+                            // Stats grid
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Spacing.md) {
+                                StatCard(title: "Total Flights", value: "\(summary?.flightCount ?? 0)", icon: "airplane", color: .skyBlue)
+                                StatCard(title: "Distance", value: String(format: "%.0f km", summary?.distanceKm ?? 0), icon: "globe", color: .emerald)
+                                StatCard(title: "Flight Hours", value: "\(summary?.totalHours ?? 0)h", icon: "clock.fill", color: .amber)
+                                StatCard(title: "Airports", value: "\(summary?.uniqueAirports ?? "0")", icon: "mappin.circle.fill", color: .skyBlue)
+                            }
+                            .padding(.horizontal)
+
+                            // Upcoming flights
+                            let upcoming = recentFlights.filter { $0.isUpcoming }.prefix(5)
+                            if !upcoming.isEmpty {
+                                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                                    Text("Upcoming Flights")
+                                        .font(Theme.Typography.headline)
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal)
+
+                                    ForEach(Array(upcoming), id: \.displayId) { flight in
+                                        NavigationLink(destination: FlightDetailView(flight: flight)) {
+                                            FlightCardView(flight: flight)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            } else {
+                                VStack(spacing: Theme.Spacing.md) {
+                                    Image(systemName: "airplane.departure")
+                                        .font(.system(size: 50))
+                                        .foregroundStyle(Color.textSecondary)
+                                    Text("No upcoming flights")
+                                        .font(Theme.Typography.headline)
+                                        .foregroundStyle(.white)
+                                    Text("Add a flight to get started")
+                                        .font(Theme.Typography.subheadline)
+                                        .foregroundStyle(Color.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, Theme.Spacing.xxl)
+                            }
                         }
                     }
                     .padding(.vertical)
                 }
+                .refreshable {
+                    await loadData()
+                }
             }
             .navigationTitle("Dashboard")
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .task {
+                await loadData()
+            }
         }
+    }
+
+    private func loadData() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            async let summaryTask = flightService.getAnalyticsSummary()
+            async let flightsTask = flightService.getFlights()
+            summary = try await summaryTask
+            recentFlights = try await flightsTask
+        } catch {
+            if summary == nil {
+                errorMessage = error.localizedDescription
+            }
+        }
+        isLoading = false
     }
 }

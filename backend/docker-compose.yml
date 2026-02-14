@@ -30,7 +30,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./shared/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./shared/database/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
+      - ./shared/database/migrations/001_users.sql:/docker-entrypoint-initdb.d/01_users.sql:ro
+      - ./shared/database/migrations/002_airports_airlines.sql:/docker-entrypoint-initdb.d/02_airports_airlines.sql:ro
+      - ./shared/database/migrations/003_flights.sql:/docker-entrypoint-initdb.d/03_flights.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -60,8 +63,8 @@ services:
 
   user-service:
     build:
-      context: ./services/user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/user-service/Dockerfile
     container_name: jetstream-user-service
     restart: unless-stopped
     environment:
@@ -78,6 +81,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
     ports:
       - "3001:3001"
@@ -96,8 +100,8 @@ services:
 
   flight-service:
     build:
-      context: ./services/flight-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/flight-service/Dockerfile
     container_name: jetstream-flight-service
     restart: unless-stopped
     environment:

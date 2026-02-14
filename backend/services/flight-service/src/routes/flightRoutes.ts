@@ -9,8 +9,8 @@ const router = Router();
 router.get('/airports/search', flightController.searchAirports.bind(flightController));
 router.get('/airlines/search', flightController.searchAirlines.bind(flightController));
 
-// PNR lookup
-router.post('/pnr-lookup', authenticate, flightController.pnrLookup.bind(flightController));
+// Flight number search
+router.post('/search-by-number', authenticate, flightController.searchByFlightNumber.bind(flightController));
 
 // CRUD
 router.get('/', authenticate, flightController.listFlights.bind(flightController));

@@ -5,6 +5,19 @@ import AuthenticationServices
 import CryptoKit
 import GoogleSignIn
 
+struct AuthResponse: Codable {
+    let user: AuthUser
+    let accessToken: String
+    let refreshToken: String
+    let expiresIn: Int
+}
+
+struct AuthUser: Codable {
+    let id: String
+    let email: String
+    let name: String
+}
+
 struct UserProfile {
     var name: String
     var email: String?
@@ -27,6 +40,8 @@ class AuthenticationService: ObservableObject {
     private var authStateHandler: AuthStateDidChangeListenerHandle?
     private var currentNonce: String?
     private var pendingSignUpName: String?
+    private let keychainManager = KeychainManager()
+    private let apiClient = APIClient()
 
     init() {
         Task { @MainActor [weak self] in
@@ -53,13 +68,39 @@ class AuthenticationService: ObservableObject {
                         avatarUrl: user.photoURL?.absoluteString
                     )
                     self.pendingSignUpName = nil
-                    self.isAuthenticated = true
+
+                    // Exchange Firebase token for backend JWT
+                    await self.exchangeFirebaseToken(user: user)
                 } else {
                     self.isAuthenticated = false
                     self.userProfile = nil
+                    self.keychainManager.clearTokens()
                 }
                 self.isCheckingAuth = false
             }
+        }
+    }
+
+    private func exchangeFirebaseToken(user: User) async {
+        do {
+            let idToken = try await user.getIDToken()
+            let provider = user.providerData.first?.providerID ?? "email"
+            let providerName: String
+            switch provider {
+            case "google.com": providerName = "google"
+            case "apple.com": providerName = "apple"
+            default: providerName = "email"
+            }
+
+            let response: AuthResponse = try await apiClient.request(
+                AuthEndpoint.socialLogin(provider: providerName, token: idToken)
+            )
+            keychainManager.saveTokens(access: response.accessToken, refresh: response.refreshToken)
+            isAuthenticated = true
+        } catch {
+            // Backend might be unavailable — still allow Firebase-only auth
+            print("Backend token exchange failed: \(error.localizedDescription)")
+            isAuthenticated = true
         }
     }
 
@@ -196,6 +237,7 @@ class AuthenticationService: ObservableObject {
         do {
             try Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
+            keychainManager.clearTokens()
             userProfile = nil
         } catch {
             errorMessage = error.localizedDescription

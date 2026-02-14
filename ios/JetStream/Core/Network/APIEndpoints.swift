@@ -84,7 +84,7 @@ enum UserEndpoint: APIEndpoint {
 // MARK: - Flight Endpoints
 
 enum FlightEndpoint: APIEndpoint {
-    case pnrLookup(pnr: String)
+    case searchByNumber(flightNumber: String, date: String?)
     case list(page: Int, limit: Int)
     case detail(id: String)
     case create(FlightCreateRequest)
@@ -96,7 +96,7 @@ enum FlightEndpoint: APIEndpoint {
 
     var path: String {
         switch self {
-        case .pnrLookup: return "/flights/pnr-lookup"
+        case .searchByNumber: return "/flights/search-by-number"
         case .list: return "/flights"
         case .detail(let id): return "/flights/\(id)"
         case .create: return "/flights"
@@ -110,7 +110,7 @@ enum FlightEndpoint: APIEndpoint {
 
     var method: HTTPMethod {
         switch self {
-        case .pnrLookup, .create: return .post
+        case .searchByNumber, .create: return .post
         case .list, .detail, .status, .searchAirports, .searchAirlines: return .get
         case .update: return .put
         case .delete: return .delete
@@ -129,8 +129,11 @@ enum FlightEndpoint: APIEndpoint {
 
     var body: Encodable? {
         switch self {
-        case .pnrLookup(let pnr):
-            return ["pnr": pnr]
+        case .searchByNumber(let flightNumber, let date):
+            if let date = date {
+                return ["flight_number": flightNumber, "date": date]
+            }
+            return ["flight_number": flightNumber]
         case .create(let request):
             return request
         case .update(_, let request):
@@ -179,6 +182,44 @@ struct FlightCreateRequest: Encodable {
     let seatNumber: String?
     let notes: String?
     let isManualEntry: Bool
+    let distanceKm: Double?
+    let durationMinutes: Int?
+
+    init(
+        pnr: String? = nil,
+        flightNumber: String,
+        airlineCode: String,
+        airlineName: String,
+        departureAirport: String,
+        departureCity: String? = nil,
+        arrivalAirport: String,
+        arrivalCity: String? = nil,
+        scheduledDeparture: Date,
+        scheduledArrival: Date,
+        cabinClass: String? = nil,
+        seatNumber: String? = nil,
+        notes: String? = nil,
+        isManualEntry: Bool = false,
+        distanceKm: Double? = nil,
+        durationMinutes: Int? = nil
+    ) {
+        self.pnr = pnr
+        self.flightNumber = flightNumber
+        self.airlineCode = airlineCode
+        self.airlineName = airlineName
+        self.departureAirport = departureAirport
+        self.departureCity = departureCity
+        self.arrivalAirport = arrivalAirport
+        self.arrivalCity = arrivalCity
+        self.scheduledDeparture = scheduledDeparture
+        self.scheduledArrival = scheduledArrival
+        self.cabinClass = cabinClass
+        self.seatNumber = seatNumber
+        self.notes = notes
+        self.isManualEntry = isManualEntry
+        self.distanceKm = distanceKm
+        self.durationMinutes = durationMinutes
+    }
 }
 
 struct FlightUpdateRequest: Encodable {
